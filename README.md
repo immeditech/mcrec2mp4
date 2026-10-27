@@ -102,6 +102,8 @@ python -m venv .venv && .venv/bin/pip install -e ".[test]"
 Die Tests erzeugen künstliche Aufnahmen (`tests/sample.py`). **Echte Aufnahmen gehören nicht ins Repo**,
 sie zeigen Bildschirminhalte.
 
+Testbuild ohne Release: Actions → „Release“ → „Run workflow“, die Einzeldateien liegen dann als Artefakte am Lauf.
+
 Release: Version in `src/mcrec2mp4/__init__.py` anheben, Tag `vX.Y.Z` pushen. GitHub Actions baut dann
 die Einzeldateien für Windows, Linux und macOS und hängt sie an das Release.
 
