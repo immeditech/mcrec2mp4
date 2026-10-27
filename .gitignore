@@ -1,0 +1,14 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+*.spec
+# Aufzeichnungen enthalten echte Bildschirminhalte – nie einchecken
+*.mcrec
+*.mp4
+*.png
+# lokale Notizen
+PLAN.md
+probe.py
