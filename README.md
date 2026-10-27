@@ -4,7 +4,8 @@ Wandelt **MeshCentral-Desktop-Aufzeichnungen (`.mcrec`)** in MP4-Videos um. Eine
 in Full HD dauert rund 25 Sekunden statt Echtzeit wie beim Export im Browser-Player.
 
 - Setzt die Bildkacheln wie der MeshCentral-Player zusammen und übernimmt die Zeitabstände.
-- Aufnahmen mit nur einem Bild werden als **PNG** gespeichert.
+- Aufnahmen, die kürzer als eine Sekunde sind (nur ein Bild), werden als **PNG** gespeichert. Bleibt der
+  Bildschirm unverändert, entsteht ein Standbild-Video über die ganze Aufnahmedauer.
 - Übernimmt die Angaben der Aufnahme (Gerät, Benutzer, Beginn, Dauer …) als Titel, Kommentar und
   Aufnahmedatum in die MP4/PNG.
 - Lange Pausen lassen sich kürzen (`--max-idle`).

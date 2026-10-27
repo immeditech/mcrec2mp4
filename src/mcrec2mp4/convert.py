@@ -187,7 +187,7 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
     base = os.path.splitext(path)[0]
     screen = Screen(size)
 
-    # Einzelbild-Aufzeichnung → PNG (an der echten Dauer gemessen, nicht an der gekürzten)
+    # Aufzeichnung unter 1 s (ein Bild) → PNG; gemessen an der echten Dauer, nicht an der gekürzten
     if raw_dur < 1.0:
         for _t, c, v in cmds:
             screen.apply(c, v)

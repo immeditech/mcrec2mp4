@@ -139,6 +139,15 @@ def test_odd_size_and_resize(tmp_path):
     assert g > 150 and r < 80
 
 
+def test_static_screen_until_end_block(tmp_path):
+    # nur ein Bild, aber die Aufnahme läuft 3 s weiter → Standbild-Video statt PNG
+    data = sample.recording([(0, sample.screen(32, 32)), (0, sample.tile(0, 0, sample.png(RED, (32, 32))))],
+                            end_ms=3000)
+    out = convert(write(tmp_path, "still.mcrec", data), fps=10)
+    assert out.endswith(".mp4")
+    assert 30 <= len(decode(out, 32, 32)) <= 32
+
+
 def test_tile_before_screen_size(tmp_path):
     # Kachel kommt vor der Größenangabe → Video trotzdem in Bildschirmgröße
     data = sample.recording([

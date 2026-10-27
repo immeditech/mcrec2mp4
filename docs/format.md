@@ -16,6 +16,9 @@ Die Datei ist eine Folge von Blöcken: 16 Byte Kopf + Daten.
 | 8–15  | Zeit (siehe unten)             |
 
 Typen: 1 = Metadaten (JSON), 2 = Netzwerkdaten, 3 = Ende/Index-Zeiger, 4 = Index-Metadaten.
+Der Ende-Block (Typ 3) trägt das Ende der Aufnahme: Ändert sich der Bildschirm nicht, kommen keine
+Daten mehr, die Aufnahme läuft aber weiter (der Player zeigt ein Standbild). Der Server datiert den
+Ende-Block um 5 s zurück, deshalb gilt der spätere Wert aus letztem Datenblock und Ende-Block.
 Flags: `1` = binär, `2` = Benutzer → Gerät. Für das Bild zählen nur Typ-2-Blöcke mit `flags & 1` und
 ohne `flags & 2` (Gerät → Benutzer).
 

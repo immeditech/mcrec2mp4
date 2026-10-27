@@ -46,12 +46,13 @@ def tile(x, y, img_bytes):
     return view
 
 
-def recording(events, meta=None, style="browser", t_base=1_761_552_000_000):
+def recording(events, meta=None, style="browser", t_base=1_761_552_000_000, end_ms=None):
     """events: Liste von (t_ms relativ, Desktop-Kommando-Bytes)."""
     meta = {"magic": "MeshCentralRelaySession", "ver": 1, "time": "27.10.2026, 09:12:38", "protocol": 2,
             **(meta or {})}
     out = entry(1, 0, json.dumps(meta).encode(), t_base, style)
     for t, data in events:
         out += entry(2, 1, data, t_base + t, style)
-    out += entry(3, 0, b"", t_base + (events[-1][0] if events else 0), style)
+    end = end_ms if end_ms is not None else (events[-1][0] if events else 0)
+    out += entry(3, 0, b"MeshCentralMCREC", t_base + end, style)
     return out

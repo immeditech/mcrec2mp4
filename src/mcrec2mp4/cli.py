@@ -45,7 +45,7 @@ def _parser():
     ap = argparse.ArgumentParser(
         prog="mcrec2mp4",
         description="MeshCentral-Desktop-Aufzeichnungen (.mcrec) in MP4 umwandeln. "
-                    "Aufzeichnungen mit nur einem Bild werden als PNG gespeichert.")
+                    "Aufzeichnungen unter einer Sekunde (ein Bild) werden als PNG gespeichert.")
     ap.add_argument("files", nargs="*", metavar="DATEI", help=".mcrec-Datei(en)")
     ap.add_argument("-o", "--output", help="Ausgabedatei (nur bei einer Eingabedatei)")
     ap.add_argument("--fps", type=float, default=10, help="Bildrate (Standard: 10)")

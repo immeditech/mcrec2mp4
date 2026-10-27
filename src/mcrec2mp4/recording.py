@@ -80,12 +80,19 @@ def read_meta(data):
 
 
 def time_range(data):
-    t0 = t1 = None
+    """(Beginn, Ende) in ms. Das Ende ist der spätere Wert aus letztem Datenblock und Ende-Block:
+    Ändert sich der Bildschirm nicht, kommen keine Daten mehr – die Aufnahme läuft trotzdem weiter
+    (der Player zeigt bis zum Ende-Block ein Standbild). Der Server datiert den Ende-Block 5 s zurück."""
+    t0 = t1 = end = None
     for typ, _f, t, _v in blocks(data):
         if typ == T_DATA:
             if t0 is None:
                 t0 = t
             t1 = t
+        elif typ == T_END:
+            end = t
+    if t0 is not None and end is not None:
+        t1 = max(t1, end)
     return t0, t1
 
 
