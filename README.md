@@ -11,13 +11,15 @@ takes about 25 seconds, instead of real time as with the export in the browser p
 - Long pauses can be shortened (`--max-idle`).
 - Recordings from a crashed server (missing end block or truncated last block) are converted up to
   the last complete block.
-- **Right-click "In MP4 umwandeln"** ("Convert to MP4") in the file manager: Windows Explorer,
-  Nautilus (GNOME Files), Nemo, Caja and Dolphin. Multiple files work too (on Windows one window per
+- **Right-click "Convert to MP4"** in the file manager: Windows Explorer, Nautilus (GNOME Files),
+  Nemo, Caja and Dolphin. Multiple files work too (on Windows one window per
   file, up to 15 files).
 
 The output file is placed next to the recording (`recording.mcrec` → `recording.mp4`).
 
-> **Note:** The program's messages and the context-menu label are currently in German.
+- English and German: messages and the context-menu label follow the system language ("In MP4
+  umwandeln" on German systems), the date format follows the system's date settings. Override with
+  `MCREC2MP4_LANG=de` or `MCREC2MP4_LANG=en`.
 
 ## Installation
 
@@ -27,7 +29,7 @@ The output file is placed next to the recording (`recording.mcrec` → `recordin
    [releases](https://github.com/immeditech/mcrec2mp4/releases/latest).
 2. Double-click it. The program copies itself to `%LOCALAPPDATA%\Programs\mcrec2mp4` and sets up the
    right-click entry – no admin rights needed. ffmpeg is bundled.
-3. Right-click a `.mcrec` file → **In MP4 umwandeln** (Windows 11: under "Show more options").
+3. Right-click a `.mcrec` file → **Convert to MP4** (Windows 11: under "Show more options").
 
 Windows SmartScreen may warn on first start because the file isn't signed
 ("More info" → "Run anyway").
@@ -71,18 +73,18 @@ mcrec2mp4 [options] FILE…
   --uninstall          remove the right-click entry
 ```
 
-Example (output is in German):
+Example:
 
 ```text
 $ mcrec2mp4 DesktopSession-PC01-2026-10-27-09-21.mcrec
 DesktopSession-PC01-2026-10-27-09-21.mcrec:
-  Gerät:     PC01
-  Beginn:    27.10.2026 09:12:38
-  Ende:      27.10.2026 09:21:11
-  Dauer:     8:33
-  Auflösung: 1920×1080
-  Aufnahme:  Browser (Aufnahme-Knopf)
-  → Video gespeichert: DesktopSession-PC01-2026-10-27-09-21.mp4 (1920×1080, 8:33, in 24 s umgewandelt)
+  Device:      PC01
+  Start:       2026-10-27 09:12:38
+  End:         2026-10-27 09:21:11
+  Duration:    8:33
+  Resolution:  1920×1080
+  Recorded by: browser (record button)
+  → Video saved: DesktopSession-PC01-2026-10-27-09-21.mp4 (1920×1080, 8:33, converted in 24 s)
 ```
 
 ## Which details are available?

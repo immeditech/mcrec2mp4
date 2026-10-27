@@ -5,7 +5,7 @@ import sys
 import pytest
 from PIL import Image
 
-from mcrec2mp4 import cli, integration
+from mcrec2mp4 import cli, i18n, integration
 from mcrec2mp4.convert import convert, find_ffmpeg
 from mcrec2mp4.recording import McrecError, blocks, describe, desktop_commands, parse_time
 
@@ -63,18 +63,50 @@ def test_wrapper_and_big_tile():
 
 def test_describe_device_from_filename():
     rows, start = describe("/x/DesktopSession-PC-01-2026-10-27-09-21 (1).mcrec", {}, 60, (800, 600))
-    info = dict(rows)
-    assert info["Gerät"] == "PC-01"
+    info = {i: v for i, _k, v in rows}
+    assert info["device"] == "PC-01"
     assert start.strftime("%H:%M") == "09:20"
-    assert info["Aufnahme"].startswith("Browser")
+    assert info["source"].startswith("Browser")
 
 
 def test_describe_server_meta():
     meta = {"devicename": "Srv", "username": "Anna", "userid": "user//anna", "ipaddr1": "10.0.0.1",
             "time": "10/27/2026, 9:00:00 AM", "sessionid": "s1"}
-    info = dict(describe("a.mcrec", meta, 5, None)[0])
-    assert info["Benutzer"] == "Anna" and info["IP-Adressen"] == "10.0.0.1"
-    assert info["Aufnahme"] == "MeshCentral-Server" and info["Beginn"] == "27.10.2026 09:00:00"
+    info = {i: v for i, _k, v in describe("a.mcrec", meta, 5, None)[0]}
+    assert info["user"] == "Anna" and info["ips"] == "10.0.0.1"
+    assert info["source"] == "MeshCentral-Server" and info["start"] == "27.10.2026 09:00:00"
+
+
+def test_english(tmp_path, capsys):
+    i18n.set_lang("en")
+    rows, _ = describe("DesktopSession-PC-2026-10-27-09-21.mcrec", {"time": "27.10.2026, 09:20:00"}, 30, (8, 8))
+    labels = {i: k for i, k, _v in rows}
+    assert labels["device"] == "Device" and labels["size"] == "Resolution"
+    assert dict((i, v) for i, _k, v in rows)["start"] == "2026-10-27 09:20:00"
+    data = sample.recording([(0, sample.screen(8, 8)), (0, sample.tile(0, 0, sample.png(RED, (8, 8))))])
+    out = convert(write(tmp_path, "DesktopSession-PC-2026-10-27-09-21.mcrec", data))
+    assert "Image saved" in capsys.readouterr().err
+    with Image.open(out) as img:
+        assert img.text["Title"].startswith("MeshCentral session PC") and "Device: PC" in img.text["Comment"]
+    with pytest.raises(McrecError, match="Protocol 1"):
+        convert(write(tmp_path, "term.mcrec", sample.recording([(0, b"ls")], meta={"protocol": 1})))
+
+
+def test_language_detection(monkeypatch):
+    for var in ("MCREC2MP4_LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("LANG", "de_CH.UTF-8")
+    i18n.set_lang(None)
+    assert i18n.lang() == "de"
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    i18n.set_lang(None)
+    assert i18n.lang() == "en"
+    monkeypatch.setenv("LC_TIME", "de_CH.UTF-8")  # englischer Text, Schweizer Datum
+    i18n.set_lang(None)
+    assert i18n.lang() == "en" and i18n.date_fmt().startswith("%d.%m.%Y")
+    monkeypatch.setenv("MCREC2MP4_LANG", "de")
+    i18n.set_lang(None)
+    assert i18n.lang() == "de"
 
 
 # ------------------------------------------------------------------ Umwandlung
@@ -233,15 +265,19 @@ def test_linux_integration(tmp_path, monkeypatch):
     foreign.parent.mkdir(parents=True)
     foreign.write_text("eigene Datei")
     msgs = integration.install()
-    script = tmp_path / "data" / "nautilus" / "scripts" / integration.LABEL
+    script = tmp_path / "data" / "nautilus" / "scripts" / "In MP4 umwandeln"
     assert script.exists() and script.stat().st_mode & 0o111
     assert "--from-filemanager" in script.read_text()
-    assert (tmp_path / "config" / "caja" / "scripts" / integration.LABEL).exists()
+    assert (tmp_path / "config" / "caja" / "scripts" / "In MP4 umwandeln").exists()
     assert (tmp_path / "data" / "kio" / "servicemenus" / "mcrec2mp4.desktop").exists()
     assert (tmp_path / "data" / "mime" / "packages" / "mcrec2mp4.xml").exists()
     assert foreign.read_text() == "eigene Datei" and any("übersprungen" in m for m in msgs)
+    i18n.set_lang("en")  # Sprache gewechselt: Entfernen findet das deutsche Skript trotzdem
+    integration.install()
+    en_script = tmp_path / "data" / "nautilus" / "scripts" / "Convert to MP4"
+    assert en_script.exists()
     integration.uninstall()
-    assert not script.exists() and foreign.exists()
+    assert not script.exists() and not en_script.exists() and foreign.exists()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-Explorer")

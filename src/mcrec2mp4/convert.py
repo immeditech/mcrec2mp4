@@ -13,6 +13,7 @@ import time
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
+from .i18n import date_fmt, t
 from .recording import (CMD_SCREEN, CMD_TILE, McrecError, PROTO_NAMES, describe, desktop_commands,
                         fmt_dur, read_meta, time_range)
 
@@ -147,43 +148,45 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
 
     meta = read_meta(data)
     if meta.get("magic") not in (None, "MeshCentralRelaySession"):
-        raise McrecError("Keine MeshCentral-Aufzeichnung.")
+        raise McrecError(t("Keine MeshCentral-Aufzeichnung.", "Not a MeshCentral recording."))
     proto = meta.get("protocol")
     if proto is not None and str(proto) != "2":
-        raise McrecError(f"Protokoll {proto} ({PROTO_NAMES.get(proto, 'unbekannt')}) wird nicht "
-                         "unterstützt – nur MeshCentral-Desktop-Aufzeichnungen.")
+        name = PROTO_NAMES.get(proto, t("unbekannt", "unknown"))
+        raise McrecError(t(f"Protokoll {proto} ({name}) wird nicht unterstützt – nur MeshCentral-Desktop-Aufzeichnungen.",
+                           f"Protocol {proto} ({name}) is not supported – only MeshCentral desktop recordings."))
 
     t0, t1 = time_range(data)
     if t0 is None:
-        raise McrecError("Keine Aufzeichnungsdaten gefunden.")
+        raise McrecError(t("Keine Aufzeichnungsdaten gefunden.", "No recording data found."))
 
     remap = idle_mapper(int(max_idle * 1000))
     remap(t0)  # auch eine lange Lücke vor dem ersten Bild kürzen
     cmds = [(remap(t), c, v) for t, c, v in desktop_commands(data)]
     if not any(c == CMD_TILE for _t, c, _v in cmds):
-        raise McrecError("Keine Bildkacheln in der Aufzeichnung.")
+        raise McrecError(t("Keine Bildkacheln in der Aufzeichnung.", "No screen tiles in the recording."))
     start = t0
     dur = (max(remap(t1), cmds[-1][0]) - start) / 1000
     raw_dur = (t1 - t0) / 1000
 
     size = video_size(cmds)
     if size is None:
-        raise McrecError("Keine lesbare Bildkachel in der Aufzeichnung.")
+        raise McrecError(t("Keine lesbare Bildkachel in der Aufzeichnung.", "No readable screen tile in the recording."))
     rows, rec_start = describe(path, meta, raw_dur, size)
     if dur < raw_dur - 0.5:
-        rows = [(k, f"{v} (Video gekürzt auf {fmt_dur(dur)})" if k == "Dauer" else v) for k, v in rows]
+        note = t(f"Video gekürzt auf {fmt_dur(dur)}", f"video shortened to {fmt_dur(dur)}")
+        rows = [(i, k, f"{v} ({note})" if i == "duration" else v) for i, k, v in rows]
     print(os.path.basename(path) + ":", file=log)
-    shown = [(k, v) for k, v in rows if k != "Originaldatei"]
+    shown = [(k, v) for i, k, v in rows if i != "file"]
     width = max(len(k) for k, _v in shown)
     for k, v in shown:
         print(f"  {k + ':':<{width + 1}} {v}", file=log)
     if info_only:
         return None
 
-    info = dict(rows)
-    title = "MeshCentral-Sitzung" + (f" {info['Gerät']}" if "Gerät" in info else "") + \
-        (f" – {rec_start:%d.%m.%Y %H:%M}" if rec_start else "")
-    comment = "\n".join(f"{k}: {v}" for k, v in rows)
+    info = {i: v for i, _k, v in rows}
+    title = t("MeshCentral-Sitzung", "MeshCentral session") + (f" {info['device']}" if "device" in info else "") + \
+        (" – " + rec_start.strftime(date_fmt(seconds=False)) if rec_start else "")
+    comment = "\n".join(f"{k}: {v}" for _i, k, v in rows)
     base = os.path.splitext(path)[0]
     screen = Screen(size)
 
@@ -193,7 +196,7 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
             screen.apply(c, v)
         target = out or base + ".png"
         if not overwrite and os.path.exists(target):
-            raise McrecError(f"{target} existiert bereits.")
+            raise McrecError(t(f"{target} existiert bereits.", f"{target} already exists."))
         png = PngInfo()
         png.add_itxt("Title", title)
         png.add_itxt("Comment", comment)
@@ -209,17 +212,18 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
         except BaseException:
             _unlink(tmp)
             raise
-        print(f"  → Einzelbild gespeichert: {target}", file=log)
+        print(t(f"  → Einzelbild gespeichert: {target}", f"  → Image saved: {target}"), file=log)
         return target
 
     ffmpeg = ffmpeg or find_ffmpeg()
     if not ffmpeg:
-        raise McrecError("ffmpeg wurde nicht gefunden (installieren oder `pip install imageio-ffmpeg`).")
+        raise McrecError(t("ffmpeg wurde nicht gefunden (installieren oder `pip install imageio-ffmpeg`).",
+                           "ffmpeg not found (install it or run `pip install imageio-ffmpeg`)."))
     W, H = size
     W2, H2 = W - W % 2, H - H % 2  # yuv420p braucht gerade Maße
     target = out or base + ".mp4"
     if not overwrite and os.path.exists(target):
-        raise McrecError(f"{target} existiert bereits.")
+        raise McrecError(t(f"{target} existiert bereits.", f"{target} already exists."))
     tmp = target + ".part"
     ff = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
           "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
@@ -256,7 +260,8 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
             proc.stdin.write(frame_bytes)
             if n % 50 == 0 or n == nframes - 1:
                 prog.update(f"  {n / fps:6.0f} s / {dur:.0f} s  ({100 * (n + 1) / nframes:3.0f} %, "
-                            f"{time.monotonic() - started:.0f} s vergangen)")
+                            + t(f"{time.monotonic() - started:.0f} s vergangen)",
+                                f"{time.monotonic() - started:.0f} s elapsed)"))
         proc.stdin.close()
     except OSError as e:
         # ffmpeg ist ausgestiegen (Windows meldet das als EINVAL statt BrokenPipe) → Fehlercode unten
@@ -272,8 +277,9 @@ def convert(path, out=None, fps=10, max_idle=0.0, crf=23, overwrite=True, info_o
         raise
     if proc.wait() != 0:
         _unlink(tmp)
-        raise McrecError("ffmpeg ist fehlgeschlagen.")
+        raise McrecError(t("ffmpeg ist fehlgeschlagen.", "ffmpeg failed."))
     os.replace(tmp, target)
-    prog.done(f"  → Video gespeichert: {target} ({W2}×{H2}, {fmt_dur(dur)}, "
-              f"in {time.monotonic() - started:.0f} s umgewandelt)")
+    secs = f"{time.monotonic() - started:.0f}"
+    prog.done(t(f"  → Video gespeichert: {target} ({W2}×{H2}, {fmt_dur(dur)}, in {secs} s umgewandelt)",
+                f"  → Video saved: {target} ({W2}×{H2}, {fmt_dur(dur)}, converted in {secs} s)"))
     return target

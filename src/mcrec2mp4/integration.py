@@ -1,4 +1,4 @@
-"""Rechtsklick-Eintrag „In MP4 umwandeln“ im Dateimanager ein- und austragen.
+"""Rechtsklick-Eintrag „In MP4 umwandeln“ / „Convert to MP4“ im Dateimanager ein- und austragen.
 
 - Windows: Explorer (HKCU, keine Admin-Rechte nötig)
 - Linux: Nautilus (GNOME Files), Nemo, Caja, Dolphin + MIME-Typ für *.mcrec
@@ -10,10 +10,16 @@ import shutil
 import subprocess
 import sys
 
-LABEL = "In MP4 umwandeln"
+from .i18n import t
+
+LABELS = ("In MP4 umwandeln", "Convert to MP4")  # Name des Eintrags (de, en)
 MARKER = "mcrec2mp4-integration"
 MIME = "application/x-meshcentral-recording"
 WIN_KEY = r"Software\Classes\SystemFileAssociations\.mcrec\shell\mcrec2mp4"
+
+
+def label():
+    return t(*LABELS)
 
 
 def launcher():
@@ -43,18 +49,20 @@ def _desktop_exec(cmd):
     return " ".join(out)
 
 
-def _linux_targets(cmd):
+def _linux_targets(cmd, name=None):
+    name = name or label()
     data = _xdg("XDG_DATA_HOME", ".local/share")
     config = _xdg("XDG_CONFIG_HOME", ".config")
     sh = shlex.join(cmd + ["--from-filemanager"])
-    script = (f"#!/bin/sh\n# {MARKER}: Rechtsklick „{LABEL}“ (entfernen: mcrec2mp4 --uninstall)\n"
+    script = (f"#!/bin/sh\n# {MARKER}: {name} (mcrec2mp4 --uninstall)\n"
               f'exec {sh} "$@"\n')
     dexec = _desktop_exec(cmd + ["--from-filemanager"]) + " %F"
-    nemo = (f"[Nemo Action]\n# {MARKER}\nName={LABEL}\nComment=MeshCentral-Aufzeichnung in MP4 umwandeln\n"
+    comment = t("MeshCentral-Aufzeichnung in MP4 umwandeln", "Convert a MeshCentral recording to MP4")
+    nemo = (f"[Nemo Action]\n# {MARKER}\nName={name}\nComment={comment}\n"
             f"Exec={dexec}\nIcon-Name=video-x-generic\nSelection=notnone\nExtensions=mcrec;\n")
     dolphin = (f"[Desktop Entry]\n# {MARKER}\nType=Service\nMimeType={MIME};\nActions=mcrec2mp4;\n"
                "X-KDE-ServiceTypes=KonqPopupMenu/Plugin\n\n"
-               f"[Desktop Action mcrec2mp4]\nName={LABEL}\nIcon=video-x-generic\nExec={dexec}\n")
+               f"[Desktop Action mcrec2mp4]\nName={name}\nIcon=video-x-generic\nExec={dexec}\n")
     mime = (f'<?xml version="1.0" encoding="UTF-8"?>\n<!-- {MARKER} -->\n'
             '<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">\n'
             f'  <mime-type type="{MIME}">\n    <comment>MeshCentral-Aufzeichnung</comment>\n'
@@ -63,12 +71,12 @@ def _linux_targets(cmd):
             '  </mime-type>\n</mime-info>\n')
     # (Name, erkannt?, Pfad, Inhalt, ausführbar)
     return [
-        ("MIME-Typ *.mcrec", True, os.path.join(data, "mime", "packages", "mcrec2mp4.xml"), mime, False),
+        (t("MIME-Typ *.mcrec", "MIME type *.mcrec"), True, os.path.join(data, "mime", "packages", "mcrec2mp4.xml"), mime, False),
         ("Nautilus", bool(shutil.which("nautilus")),
-         os.path.join(data, "nautilus", "scripts", LABEL), script, True),
+         os.path.join(data, "nautilus", "scripts", name), script, True),
         ("Nemo", bool(shutil.which("nemo")), os.path.join(data, "nemo", "actions", "mcrec2mp4.nemo_action"),
          nemo, False),
-        ("Caja", bool(shutil.which("caja")), os.path.join(config, "caja", "scripts", LABEL), script, True),
+        ("Caja", bool(shutil.which("caja")), os.path.join(config, "caja", "scripts", name), script, True),
         ("Dolphin", bool(shutil.which("dolphin")),
          os.path.join(data, "kio", "servicemenus", "mcrec2mp4.desktop"), dolphin, True),
     ]
@@ -95,7 +103,8 @@ def _install_linux(cmd, everything=False):
         if not (found or everything):
             continue
         if os.path.exists(path) and not _ours(path):
-            msgs.append(f"{name}: übersprungen, {path} existiert bereits (nicht von mcrec2mp4)")
+            msgs.append(t(f"{name}: übersprungen, {path} existiert bereits (nicht von mcrec2mp4)",
+                          f"{name}: skipped, {path} already exists (not created by mcrec2mp4)"))
             continue
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -109,10 +118,13 @@ def _install_linux(cmd, everything=False):
 
 def _uninstall_linux():
     msgs = []
-    for name, _found, path, _content, _x in _linux_targets(launcher()):
-        if os.path.exists(path) and _ours(path):
-            os.unlink(path)
-            msgs.append(f"{name}: entfernt")
+    seen = set()
+    for lbl in LABELS:  # Skripte heißen je nach Sprache bei der Installation anders
+        for name, _found, path, _content, _x in _linux_targets(launcher(), lbl):
+            if path not in seen and os.path.exists(path) and _ours(path):
+                seen.add(path)
+                os.unlink(path)
+                msgs.append(t(f"{name}: entfernt", f"{name}: removed"))
     _update_mime(_xdg("XDG_DATA_HOME", ".local/share"))
     return msgs
 
@@ -138,17 +150,19 @@ def _install_windows(cmd):
                 os.remove(dest + ":Zone.Identifier")
             except OSError:
                 pass
-            msgs.append(f"Programm kopiert nach {dest}")
+            msgs.append(t(f"Programm kopiert nach {dest}", f"Program copied to {dest}"))
         cmd = [dest]
     command = subprocess.list2cmdline(cmd + ["--from-filemanager"]) + ' "%1"'
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, WIN_KEY) as k:
-        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, LABEL)
-        winreg.SetValueEx(k, "MUIVerb", 0, winreg.REG_SZ, LABEL)
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, label())
+        winreg.SetValueEx(k, "MUIVerb", 0, winreg.REG_SZ, label())
         winreg.SetValueEx(k, "Icon", 0, winreg.REG_SZ, cmd[0])
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, WIN_KEY + r"\command") as k:
         winreg.SetValueEx(k, None, 0, winreg.REG_SZ, command)
-    msgs.append("Explorer: Rechtsklick auf .mcrec → „In MP4 umwandeln“ "
-                "(Windows 11: unter „Weitere Optionen anzeigen“)")
+    msgs.append(t("Explorer: Rechtsklick auf .mcrec → „In MP4 umwandeln“ "
+                  "(Windows 11: unter „Weitere Optionen anzeigen“)",
+                  "Explorer: right-click a .mcrec file → \"Convert to MP4\" "
+                  "(Windows 11: under \"Show more options\")"))
     return msgs
 
 
@@ -160,17 +174,18 @@ def _uninstall_windows():
             winreg.DeleteKey(winreg.HKEY_CURRENT_USER, sub)
         except FileNotFoundError:
             pass
-    msgs.append("Explorer: Eintrag entfernt")
+    msgs.append(t("Explorer: Eintrag entfernt", "Explorer: entry removed"))
     dest = os.path.join(_win_install_dir(), "mcrec2mp4.exe")
     if os.path.exists(dest):
         if os.path.normcase(os.path.abspath(sys.executable)) == os.path.normcase(dest):
-            msgs.append(f"{dest} läuft gerade – bitte von Hand löschen")
+            msgs.append(t(f"{dest} läuft gerade – bitte von Hand löschen",
+                          f"{dest} is running – please delete it manually"))
         else:
             try:
                 os.unlink(dest)
-                msgs.append(f"{dest} gelöscht")
+                msgs.append(t(f"{dest} gelöscht", f"{dest} deleted"))
             except OSError:
-                msgs.append(f"{dest} konnte nicht gelöscht werden")
+                msgs.append(t(f"{dest} konnte nicht gelöscht werden", f"{dest} could not be deleted"))
             try:
                 os.rmdir(os.path.dirname(dest))
             except OSError:
@@ -195,11 +210,14 @@ def install(everything=False):
     if sys.platform == "win32":
         return _install_windows(cmd)
     if sys.platform == "darwin":
-        return ["macOS: Finder-Einbindung wird noch nicht unterstützt – bitte die Kommandozeile nutzen."]
+        return [t("macOS: Finder-Einbindung wird noch nicht unterstützt – bitte die Kommandozeile nutzen.",
+                  "macOS: Finder integration is not supported yet – please use the command line.")]
     msgs = _install_linux(cmd, everything)
     if len(msgs) <= 1:
-        msgs.append("Kein unterstützter Dateimanager gefunden (Nautilus, Nemo, Caja, Dolphin). "
-                    "Mit --install-all trotzdem für alle einrichten.")
+        msgs.append(t("Kein unterstützter Dateimanager gefunden (Nautilus, Nemo, Caja, Dolphin). "
+                      "Mit --install-all trotzdem für alle einrichten.",
+                      "No supported file manager found (Nautilus, Nemo, Caja, Dolphin). "
+                      "Use --install-all to set it up for all of them anyway."))
     return msgs
 
 
@@ -207,5 +225,5 @@ def uninstall():
     if sys.platform == "win32":
         return _uninstall_windows()
     if sys.platform == "darwin":
-        return ["macOS: nichts zu entfernen."]
-    return _uninstall_linux() or ["Nichts zu entfernen."]
+        return [t("macOS: nichts zu entfernen.", "macOS: nothing to remove.")]
+    return _uninstall_linux() or [t("Nichts zu entfernen.", "Nothing to remove.")]

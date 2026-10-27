@@ -9,6 +9,8 @@ import os
 import re
 import struct
 
+from .i18n import date_fmt, t
+
 PROTO_NAMES = {1: "Terminal", 2: "Desktop", 6: "Terminal", 8: "Terminal", 9: "Terminal",
                101: "Intel-AMT-Desktop", 102: "Intel-AMT-Terminal"}
 
@@ -127,7 +129,7 @@ def fmt_dur(s):
 def describe(path, meta, raw_dur, size):
     """Sammelt alle verfügbaren Angaben.
 
-    Rückgabe: (Liste von (Bezeichnung, Wert), Beginn als naives datetime in Ortszeit oder None).
+    Rückgabe: (Liste von (Kennung, Bezeichnung, Wert), Beginn als naives datetime in Ortszeit oder None).
     """
     stem = os.path.splitext(os.path.basename(path))[0]
     m = FILENAME_RE.match(stem)
@@ -140,19 +142,20 @@ def describe(path, meta, raw_dur, size):
     ips = ", ".join(str(x) for x in (meta.get("ipaddr1"), meta.get("ipaddr2")) if x)
     single = raw_dur < 1
     rows = [
-        ("Gerät", device),
-        ("Gerätegruppe", meta.get("devicegroup")),
-        ("Benutzer", meta.get("username")),
-        ("Benutzer-ID", meta.get("userid")),
-        ("IP-Adressen", ips),
-        ("Beginn", start.strftime("%d.%m.%Y %H:%M:%S") if start else meta.get("time")),
-        ("Ende", None if single or not start else
-         (start + datetime.timedelta(seconds=raw_dur)).strftime("%d.%m.%Y %H:%M:%S")),
-        ("Dauer", "Einzelbild" if single else fmt_dur(raw_dur)),
-        ("Auflösung", f"{size[0]}×{size[1]}" if size else None),
-        ("Aufnahme", "MeshCentral-Server" if server else "Browser (Aufnahme-Knopf)"),
-        ("Sitzungs-ID", meta.get("sessionid")),
-        ("Geräte-ID", meta.get("nodeid")),
-        ("Originaldatei", os.path.basename(path)),
+        ("device", t("Gerät", "Device"), device),
+        ("group", t("Gerätegruppe", "Device group"), meta.get("devicegroup")),
+        ("user", t("Benutzer", "User"), meta.get("username")),
+        ("userid", t("Benutzer-ID", "User ID"), meta.get("userid")),
+        ("ips", t("IP-Adressen", "IP addresses"), ips),
+        ("start", t("Beginn", "Start"), start.strftime(date_fmt()) if start else meta.get("time")),
+        ("end", t("Ende", "End"), None if single or not start else
+         (start + datetime.timedelta(seconds=raw_dur)).strftime(date_fmt())),
+        ("duration", t("Dauer", "Duration"), t("Einzelbild", "single image") if single else fmt_dur(raw_dur)),
+        ("size", t("Auflösung", "Resolution"), f"{size[0]}×{size[1]}" if size else None),
+        ("source", t("Aufnahme", "Recorded by"), t("MeshCentral-Server", "MeshCentral server") if server else
+         t("Browser (Aufnahme-Knopf)", "browser (record button)")),
+        ("sessionid", t("Sitzungs-ID", "Session ID"), meta.get("sessionid")),
+        ("nodeid", t("Geräte-ID", "Node ID"), meta.get("nodeid")),
+        ("file", t("Originaldatei", "Original file"), os.path.basename(path)),
     ]
-    return [(k, str(v)) for k, v in rows if v], start
+    return [(i, k, str(v)) for i, k, v in rows if v], start

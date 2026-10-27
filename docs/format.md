@@ -1,57 +1,58 @@
-# Das .mcrec-Format (MeshCentral-Desktop)
+# The .mcrec format (MeshCentral desktop)
 
-Zusammengetragen aus dem MeshCentral-Quellcode (`views/player.handlebars` → `processBlockEx`,
+Compiled from the MeshCentral source code (`views/player.handlebars` → `processBlockEx`,
 `public/scripts/agent-desktop-0.0.2.js` → `ProcessBinaryCommand`/`recordingEntry`, `meshrelay.js` →
 `recordingEntry`, `views/default.handlebars` → `deskRecordSession`).
 
-## Blöcke
+## Blocks
 
-Die Datei ist eine Folge von Blöcken: 16 Byte Kopf + Daten.
+The file is a sequence of blocks: a 16-byte header followed by the data.
 
-| Byte  | Inhalt                         |
+| Bytes | Content                        |
 |-------|--------------------------------|
-| 0–1   | Typ (u16 BE)                   |
-| 2–3   | Flags (u16 BE)                 |
-| 4–7   | Datengröße (u32 BE)            |
-| 8–15  | Zeit (siehe unten)             |
+| 0–1   | type (u16 BE)                  |
+| 2–3   | flags (u16 BE)                 |
+| 4–7   | data size (u32 BE)             |
+| 8–15  | time (see below)               |
 
-Typen: 1 = Metadaten (JSON), 2 = Netzwerkdaten, 3 = Ende/Index-Zeiger, 4 = Index-Metadaten.
-Der Ende-Block (Typ 3) trägt das Ende der Aufnahme: Ändert sich der Bildschirm nicht, kommen keine
-Daten mehr, die Aufnahme läuft aber weiter (der Player zeigt ein Standbild). Der Server datiert den
-Ende-Block um 5 s zurück, deshalb gilt der spätere Wert aus letztem Datenblock und Ende-Block.
-Flags: `1` = binär, `2` = Benutzer → Gerät. Für das Bild zählen nur Typ-2-Blöcke mit `flags & 1` und
-ohne `flags & 2` (Gerät → Benutzer).
+Types: 1 = metadata (JSON), 2 = network data, 3 = end/index pointer, 4 = index metadata.
+The end block (type 3) carries the end of the recording: if the screen doesn't change, no more data
+arrives, but the recording keeps running (the player shows a still image). The server backdates the
+end block by 5 s, so the end is the later of the last data block and the end block.
 
-## Zeitstempel
+Flags: `1` = binary, `2` = user → device. Only type-2 blocks with `flags & 1` and without `flags & 2`
+(device → user) matter for the picture.
 
-Der Player rechnet `(ReadInt(8) << 32) + ReadInt(12)`. In JavaScript ist `x << 32` dasselbe wie
-`x << 0`, das Ergebnis ist also `int32(Bytes 8–11) + uint32(Bytes 12–15)`.
+## Timestamps
 
-- **Browser-Aufnahme** (Aufnahme-Knopf in der Web-Oberfläche) schreibt `intToStr(now >> 32)` und
-  `intToStr(now & 32)` – also die unteren 32 Bit der Millisekunden-Zeit und dazu 0 oder 32.
-  Zeitabstände schwanken dadurch um bis zu 32 ms.
-- **Server-Aufzeichnung** schreibt die Zeit korrekt als 48-Bit-Zahl in Bytes 10–15.
+The player computes `(ReadInt(8) << 32) + ReadInt(12)`. In JavaScript `x << 32` is the same as
+`x << 0`, so the result is `int32(bytes 8–11) + uint32(bytes 12–15)`.
 
-Beide Varianten laufen nach der Player-Formel alle 2³² ms (≈ 49,7 Tage) über. mcrec2mp4 entfaltet die
-Zeit deshalb und nutzt nur Zeitabstände.
+- **Browser recording** (record button in the web UI) writes `intToStr(now >> 32)` and
+  `intToStr(now & 32)` – i.e. the lower 32 bits of the millisecond time plus 0 or 32.
+  Time intervals therefore jitter by up to 32 ms.
+- **Server recording** writes the time correctly as a 48-bit number in bytes 10–15.
 
-## Metadaten (Typ 1)
+With the player's formula, both variants wrap around every 2³² ms (≈ 49.7 days). mcrec2mp4 therefore
+unwraps the time and only uses time differences.
 
-- Browser-Aufnahme: nur `magic`, `ver`, `time` (`toLocaleString()` des Browsers) und `protocol`.
-  Den Gerätenamen gibt es nur im Dateinamen: `DesktopSession-<Gerät>-JJJJ-MM-TT-HH-MM.mcrec`
-  (Zeit = Ende der Aufnahme).
-- Server-Aufzeichnung: zusätzlich `userid`, `username`, `sessionid`, `ipaddr1`, `ipaddr2`, `nodeid`,
-  `devicename` (und je nach Weg `devicegroup`).
+## Metadata (type 1)
 
-`protocol`: 2 = MeshCentral-Desktop (unterstützt), 1/6/8/9 = Terminal, 101/102 = Intel AMT.
+- Browser recording: only `magic`, `ver`, `time` (the browser's `toLocaleString()`) and `protocol`.
+  The device name is only in the file name: `DesktopSession-<device>-YYYY-MM-DD-HH-MM.mcrec`
+  (time = end of the recording).
+- Server recording: additionally `userid`, `username`, `sessionid`, `ipaddr1`, `ipaddr2`, `nodeid`,
+  `devicename` (and, depending on the code path, `devicegroup`).
 
-## Desktop-Kommandos
+`protocol`: 2 = MeshCentral desktop (supported), 1/6/8/9 = terminal, 101/102 = Intel AMT.
 
-Daten = `cmd u16 | cmdsize u16 | …`
+## Desktop commands
 
-- `cmd 27, cmdsize 8`: Großpaket-Wrapper. Echte Größe = u32 @4, echtes Kommando @8, dann `v = v[8:]`.
-- Ist danach `cmdsize + 8 == len(v)`, folgt ein doppelter Kopf: `v = v[8:]`.
-- Passt `cmdsize` nicht zur Länge, verwirft der Player das Kommando.
-- `cmd 7`: Bildschirmgröße, Breite = u16 @4, Höhe = u16 @6.
-- `cmd 3`: Kachel, X = u16 @4, Y = u16 @6, Bild (PNG/JPEG/WebP) ab Byte 8.
-- Alles andere (Maus, Displays, …) ist für das Video unerheblich.
+Data = `cmd u16 | cmdsize u16 | …`
+
+- `cmd 27, cmdsize 8`: jumbo-packet wrapper. Real size = u32 @4, real command @8, then `v = v[8:]`.
+- If `cmdsize + 8 == len(v)` afterwards, a duplicate header follows: `v = v[8:]`.
+- If `cmdsize` doesn't match the length, the player discards the command.
+- `cmd 7`: screen size, width = u16 @4, height = u16 @6.
+- `cmd 3`: tile, X = u16 @4, Y = u16 @6, image (PNG/JPEG/WebP) from byte 8.
+- Everything else (mouse, displays, …) is irrelevant for the video.
