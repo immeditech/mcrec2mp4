@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mcrec2mp4"
 dynamic = ["version"]
-description = "MeshCentral-Desktop-Aufzeichnungen (.mcrec) in MP4 umwandeln – mit Rechtsklick im Dateimanager"
+description = "Convert MeshCentral desktop recordings (.mcrec) to MP4 – with a right-click in the file manager"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
