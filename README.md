@@ -12,14 +12,12 @@ takes about 25 seconds, instead of real time as with the export in the browser p
 - Recordings from a crashed server (missing end block or truncated last block) are converted up to
   the last complete block.
 - **Right-click "Convert to MP4"** in the file manager: Windows Explorer, Nautilus (GNOME Files),
-  Nemo, Caja and Dolphin. Multiple files work too (on Windows one window per
-  file, up to 15 files).
-
-The output file is placed next to the recording (`recording.mcrec` → `recording.mp4`).
-
+  Nemo, Caja and Dolphin. Multiple files work too (on Windows one window per file, up to 15 files).
 - English and German: messages and the context-menu label follow the system language ("In MP4
   umwandeln" on German systems), the date format follows the system's date settings. Override with
   `MCREC2MP4_LANG=de` or `MCREC2MP4_LANG=en`.
+
+The output file is placed next to the recording (`recording.mcrec` → `recording.mp4`).
 
 ## Installation
 
